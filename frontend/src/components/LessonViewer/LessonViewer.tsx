@@ -15,6 +15,58 @@ import { useApp } from '../../contexts/AppContext';
 import { openaiService } from '../../services/openaiService';
 import backendService from '../../services/backendService';
 import { useNavigate } from 'react-router-dom';
+import CollapsibleSection from './CollapsibleSection';
+
+const markdownComponents = {
+  code({ className, children, ...props }: any) {
+    const match = /language-(\w+)/.exec(className || '');
+    return !className?.includes('inline') && match ? (
+      <SyntaxHighlighter
+        style={vscDarkPlus}
+        language={match[1]}
+        PreTag="div"
+        {...props}
+      >
+        {String(children).replace(/\n$/, '')}
+      </SyntaxHighlighter>
+    ) : (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
+};
+
+interface MarkdownSection {
+  title?: string;
+  content: string;
+}
+
+function parseSections(markdown: string): MarkdownSection[] {
+  const lines = markdown.split('\n');
+  const sections: MarkdownSection[] = [];
+  let currentTitle: string | undefined;
+  let buffer: string[] = [];
+
+  const push = () => {
+    if (buffer.length > 0 || currentTitle) {
+      sections.push({ title: currentTitle, content: buffer.join('\n') });
+    }
+    buffer = [];
+  };
+
+  for (const line of lines) {
+    const match = line.match(/^##\s+(.*)/);
+    if (match) {
+      push();
+      currentTitle = match[1];
+    } else {
+      buffer.push(line);
+    }
+  }
+  push();
+  return sections;
+}
 
 interface LessonViewerProps {
   topicId: string; // Example: "electronics-semiconductors"
@@ -463,31 +515,28 @@ export default function LessonViewer({ topicId, topicName }: LessonViewerProps) 
               transition={{ duration: 0.5 }}
               className="prose prose-indigo lg:prose-xl max-w-none bg-white p-6 md:p-8 rounded-xl shadow-lg"
             >
-            <ReactMarkdown
-              remarkPlugins={[remarkMath]}
-              rehypePlugins={[rehypeKatex]}
-              components={{
-                code({className, children, ...props}) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  return !className?.includes('inline') && match ? (
-                    <SyntaxHighlighter
-                      style={vscDarkPlus}
-                      language={match[1]}
-                      PreTag="div"
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-                }
-              }}
-            >
-              {contentState.content}
-            </ReactMarkdown>
+            {parseSections(contentState.content).map((section, idx) => (
+              section.title ? (
+                <CollapsibleSection key={idx} title={section.title}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={markdownComponents}
+                  >
+                    {section.content}
+                  </ReactMarkdown>
+                </CollapsibleSection>
+              ) : (
+                <ReactMarkdown
+                  key={idx}
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={markdownComponents}
+                >
+                  {section.content}
+                </ReactMarkdown>
+              )
+            ))}
             </motion.div>
           ) : (
             <motion.div
@@ -506,25 +555,7 @@ export default function LessonViewer({ topicId, topicName }: LessonViewerProps) 
               <ReactMarkdown
                 remarkPlugins={[remarkMath]}
                 rehypePlugins={[rehypeKatex]}
-                components={{
-                  code({className, children, ...props}) {
-                    const match = /language-(\w+)/.exec(className || '');
-                    return !className?.includes('inline') && match ? (
-                      <SyntaxHighlighter
-                        style={vscDarkPlus}
-                        language={match[1]}
-                        PreTag="div"
-                        {...props}
-                      >
-                        {String(children).replace(/\n$/, '')}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
-                  }
-                }}
+                components={markdownComponents}
               >
                 {contentState.content}
               </ReactMarkdown>
